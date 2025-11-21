@@ -9,18 +9,25 @@ from deep_translator import GoogleTranslator
 # 環境変数を読み込む
 load_dotenv()
 
-# ログ設定（ファイルのみに出力、エラーと翻訳実行時のみ）
-LOG_FILE = 'bot_translation.log'
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(message)s',
-    datefmt='%Y-%m-%d %H:%M:%S',
-    handlers=[
-        logging.FileHandler(LOG_FILE, encoding='utf-8')
-        # コンソール出力は削除（エラーと翻訳実行時のみファイルに記録）
-    ]
-)
-logger = logging.getLogger(__name__)
+# discord.pyのログを抑制（WARNING以上のみ）
+logging.getLogger('discord').setLevel(logging.WARNING)
+logging.getLogger('discord.http').setLevel(logging.WARNING)
+
+# 翻訳ログ用のロガー（別ファイル）
+translation_logger = logging.getLogger('translation')
+translation_logger.setLevel(logging.INFO)
+translation_handler = logging.FileHandler('bot_translation.log', encoding='utf-8')
+translation_handler.setFormatter(logging.Formatter('%(asctime)s - %(message)s', datefmt='%Y-%m-%d %H:%M:%S'))
+translation_logger.addHandler(translation_handler)
+translation_logger.propagate = False  # 親ロガーに伝播しない
+
+# エラーログ用のロガー（別ファイル）
+error_logger = logging.getLogger('error')
+error_logger.setLevel(logging.ERROR)
+error_handler = logging.FileHandler('bot_errors.log', encoding='utf-8')
+error_handler.setFormatter(logging.Formatter('%(asctime)s - %(message)s', datefmt='%Y-%m-%d %H:%M:%S'))
+error_logger.addHandler(error_handler)
+error_logger.propagate = False  # 親ロガーに伝播しない
 
 # Botの設定
 intents = discord.Intents.default()
@@ -230,10 +237,10 @@ async def translate_message(interaction: discord.Interaction, message: discord.M
         
         # ボタンのラベルはView作成時に既に設定されているので、ここでは何もしない
         
-        # ログを記録
+        # 翻訳ログを記録
         user_name = interaction.user.display_name or interaction.user.name
         text_preview = message.content[:50] + ('...' if len(message.content) > 50 else '')
-        logger.info(f"翻訳使用 - ユーザー: {user_name} | 翻訳先: {target_lang} ({target_code}) | テキスト: {text_preview}")
+        translation_logger.info(f"翻訳使用 - ユーザー: {user_name} | 翻訳先: {target_lang} ({target_code}) | テキスト: {text_preview}")
         
         # ephemeral=Trueで一時的なメッセージとして表示（履歴に残らない）
         await interaction.followup.send(embed=embed, view=view, ephemeral=True)
@@ -242,7 +249,7 @@ async def translate_message(interaction: discord.Interaction, message: discord.M
         # エラーログを記録
         user_name = interaction.user.display_name or interaction.user.name
         text_preview = message.content[:50] + ('...' if len(message.content) > 50 else '')
-        logger.error(f"翻訳エラー - ユーザー: {user_name} | 翻訳先: {target_lang} ({target_code}) | テキスト: {text_preview} | エラー: {str(e)}")
+        error_logger.error(f"翻訳エラー - ユーザー: {user_name} | 翻訳先: {target_lang} ({target_code}) | テキスト: {text_preview} | エラー: {str(e)}")
         
         await interaction.followup.send(
             f'❌ {ui_texts["error"]}: {str(e)}',
