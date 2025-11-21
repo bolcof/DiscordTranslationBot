@@ -9,15 +9,15 @@ from deep_translator import GoogleTranslator
 # 環境変数を読み込む
 load_dotenv()
 
-# ログ設定
+# ログ設定（ファイルのみに出力、エラーと翻訳実行時のみ）
 LOG_FILE = 'bot_translation.log'
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(message)s',
     datefmt='%Y-%m-%d %H:%M:%S',
     handlers=[
-        logging.FileHandler(LOG_FILE, encoding='utf-8'),
-        logging.StreamHandler()  # コンソールにも出力
+        logging.FileHandler(LOG_FILE, encoding='utf-8')
+        # コンソール出力は削除（エラーと翻訳実行時のみファイルに記録）
     ]
 )
 logger = logging.getLogger(__name__)
@@ -239,7 +239,11 @@ async def translate_message(interaction: discord.Interaction, message: discord.M
         await interaction.followup.send(embed=embed, view=view, ephemeral=True)
         
     except Exception as e:
-        print(f"翻訳エラー: {e}")
+        # エラーログを記録
+        user_name = interaction.user.display_name or interaction.user.name
+        text_preview = message.content[:50] + ('...' if len(message.content) > 50 else '')
+        logger.error(f"翻訳エラー - ユーザー: {user_name} | 翻訳先: {target_lang} ({target_code}) | テキスト: {text_preview} | エラー: {str(e)}")
+        
         await interaction.followup.send(
             f'❌ {ui_texts["error"]}: {str(e)}',
             ephemeral=True
